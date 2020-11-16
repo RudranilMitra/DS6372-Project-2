@@ -140,25 +140,41 @@ ggplot(bank) + geom_histogram(aes(x = campaign), binwidth = 0.1, col = "white") 
 
 summary(bank$campaign)
 
-bank$lgcampaign = log(bank$campaign)
 
-#Pdays distribution
+bank$lgcampaign = log(log(bank$campaign))
 
-ggplot(data=bank,aes(x=bank$pdays)) + geom_histogram() +
+
+#####Pdays distribution
+# It doesn't look like pday has much information as it only shows 2 values for "0' and "1000"
+
+ggplot(data=bank,aes(x=pdays)) + geom_histogram() +
   stat_function(fun = dnorm, args = list(mean = mean(bank$campaign, na.rm = TRUE), sd = sd(bank$pdays, na.rm = TRUE))) +
   labs(x = "pdays", y = "Count", title = "Pdays distribution") +   theme_economist()
 
+#checking out the pdays by the response variable
+#pdays is still rightly skewed.
+#
+ggplot(bank) + geom_histogram(aes(x = pdays), binwidth = 0.1, col = "white") + facet_grid(y~., scales = "free") + scale_x_log10() +theme_bw()
 
-#Previous distribution
+summary(bank$pdays)
 
-ggplot(data=bank,aes(x=bank$previous)) + geom_histogram() +
+
+
+####Previous distribution
+
+ggplot(data=bank,aes(x=previous)) + geom_histogram() +
   stat_function(fun = dnorm, args = list(mean = mean(bank$previous, na.rm = TRUE), sd = sd(bank$previous, na.rm = TRUE))) +
   labs(x = "previous", y = "Count", title = "Previous distribution") +   theme_economist()
 
+#checking out the Previous distribution by the response variable
+ggplot(bank) + geom_histogram(aes(x = previous), binwidth = 0.1, col = "white") + facet_grid(y~., scales = "free") + scale_x_log10() +theme_bw()
 
-#Emp.var.rate distribution
+summary(bank$pdays)
 
-ggplot(data=bank,aes(x=bank$emp.var.rate)) + geom_histogram() +
+
+####Emp.var.rate distribution
+
+ggplot(data=bank,aes(x=emp.var.rate)) + geom_histogram() +
   stat_function(fun = dnorm, args = list(mean = mean(bank$emp.var.rate, na.rm = TRUE), sd = sd(bank$emp.var.rate, na.rm = TRUE))) +
   labs(x = "emp.var.rate", y = "Count", title = "Emp.var.rate distribution") +   theme_economist()
 
@@ -252,7 +268,7 @@ BankPlot <- ExpNumViz(bank, target = NULL, nlim = 10, Page = c(3,3), sample = 9)
 
 BankPlotn <- ExpNumViz(bank, target = "y", nlim = 10, Page = c(3,3), sample = 9)
 
-Bankplot2 <- ExpCatViz(bank,target= "y",col ="slateblue4",clim=10,margin=2,Page = c(3,3),sample=9)
+Bankplot2 <- ExpCatViz(bank,target= "y",clim=10,margin=2,Page = c(3,3),sample=9)
 
 
 pairs(bank[,c(1,11:14,16:20)], col = bank$y)
@@ -315,11 +331,9 @@ BankBoxPlot("y", "duration", "Outcome", "duration - Duration of Last Contact (se
 BankBoxPlot("y", "campaign", "Outcome", "campaign - Number of Contacts During this Campaign")
 BankBoxPlot("y", "pdays", "Outcome", "pdays - Number of Days Since Previous Contact")
 BankBoxPlot("y", "previous", "Outcome", "previous - Previous Number of Contacts")
-NiceBoxPlot("y", "emp.var.rate", "Outcome", "emp.var.rate - Employment Variation Rate (quaterly indicator)")
-NiceBoxPlot("y", "cons.price.idx", "Outcome", "cons.price.idx - Consumer Price Index (montly indicator)")
-NiceBoxPlot("y", "cons.conf.idx", "Outcome", "cons.conf.idx - Consumer Confidence Index(monthly indicator)")
-NiceBoxPlot("y", "euribor3m", "Outcome", "euribor3m - eurobor 3 month rate")
-NiceBoxPlot("y", "nr.employed", "Outcome", "nr.employed - number of employees (quarterly indicator)")
+BankBoxPlot("y", "cons.price.idx", "Outcome", "cons.price.idx - Consumer Price Index (montly indicator)")
+BankBoxPlot("y", "cons.conf.idx", "Outcome", "cons.conf.idx - Consumer Confidence Index(monthly indicator)")
+BankBoxPlot("y", "nr.employed", "Outcome", "nr.employed - number of employees (quarterly indicator)")
 ```
 
 ```{r}
