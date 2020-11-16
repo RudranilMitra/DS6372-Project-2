@@ -111,17 +111,23 @@ table(bank$y)
 prop.table(table(bank$y))
 
 
-## Check of the range of some of these continuous variables with histograms
+####### Check of the range of some of these continuous variables with histograms
  
-#Distribution of duration
+###Distribution of duration
+#Durationis rightly skewed and contains some few outliers
 
 ggplot(data=bank,aes(x=duration)) + geom_histogram() +
   stat_function(fun = dnorm, args = list(mean = mean(bank$duration, na.rm = TRUE), sd = sd(bank$duration, na.rm = TRUE))) +
   labs(x = "duration", y = "Count", title = "Duration distribution") +   theme_economist()
 
+#summary stats of duraation
 summary(bank$duration)
 
-#Campaign distribution
+#checking out the distribution by the response variable
+#Distribution seems to be normally distributed
+ggplot(bank) + geom_histogram(aes(x = duration), binwidth = 0.1, col = "white") + facet_grid(y~., scales = "free") + scale_x_log10() +theme_bw()
+
+###Campaign distribution
 #Campaign is rightly skewed and contains some few outliers
 
 ggplot(data=bank,aes(x=campaign)) + geom_histogram() +
@@ -129,8 +135,8 @@ ggplot(data=bank,aes(x=campaign)) + geom_histogram() +
   labs(x = "campaign", y = "Count", title = "Campaign distribution") +   theme_economist()
 
 #checking out the distribution by the response variable
-#Distribution seems to be normally distributed
-ggplot(bank) + geom_histogram(aes(x = age), binwidth = 0.1, col = "white") + facet_grid(y~., scales = "free") + scale_x_log10() +theme_bw()
+#Distribution is still rightly skewed.
+ggplot(bank) + geom_histogram(aes(x = campaign), binwidth = 0.1, col = "white") + facet_grid(y~., scales = "free") + scale_x_log10() +theme_bw()
 
 summary(bank$campaign)
 
