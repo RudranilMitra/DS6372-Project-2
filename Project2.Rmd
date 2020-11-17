@@ -367,22 +367,6 @@ bank <- subset(bank, education!="unknown")
 ```
 
 
-```{r}
-BankBoxPlot <- function(columnBy, columnToShow, columnByDesc, columnToShowDesc)
-{
-ggplot(bank, aes(x=bank[,columnBy], y=bank[,columnToShow])) + geom_boxplot() +
-    stat_summary(fun.y=mean, geom="point", shape=5, size=4) +
-  ggtitle(paste(columnByDesc, "by",columnToShowDesc)) + xlab("Outcome") + ylab(columnToShowDesc) +
-  theme_economist()
-}
-BankBoxPlot("y", "duration", "Outcome", "duration - Duration of Last Contact (secs)")
-BankBoxPlot("y", "campaign", "Outcome", "campaign - Number of Contacts During this Campaign")
-BankBoxPlot("y", "pdays", "Outcome", "pdays - Number of Days Since Previous Contact")
-BankBoxPlot("y", "previous", "Outcome", "previous - Previous Number of Contacts")
-BankBoxPlot("y", "cons.price.idx", "Outcome", "cons.price.idx - Consumer Price Index (montly indicator)")
-BankBoxPlot("y", "cons.conf.idx", "Outcome", "cons.conf.idx - Consumer Confidence Index(monthly indicator)")
-BankBoxPlot("y", "nr.employed", "Outcome", "nr.employed - number of employees (quarterly indicator)")
-```
 
 ```{r}
 
