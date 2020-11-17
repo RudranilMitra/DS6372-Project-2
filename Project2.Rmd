@@ -31,6 +31,14 @@ library(tidyr)
 library(stringr)
 library(naniar)
 library(car)
+library(MASS)
+library(caret)
+library(ROCR)
+library(glmnet)
+library(bestglm)
+library(car)
+library(ResourceSelection)
+library(randomForest)
 
 ```
 
@@ -231,6 +239,49 @@ plot_grid(plotlist = PlotList)
 ```
 
 
+Factor vs repsponse variable
+```{r}
+
+summary(bank$month)
+# month only has 10 levels, missing jan and feb
+bank %>% ggplot(aes(month,fill=y)) + geom_bar(position="dodge") 
+bank %>% ggplot(aes(month,fill=y)) + geom_bar(position="fill") + ylab("Proportion")
+
+
+summary(bank$education)
+# 4% "unknown" values
+bank %>% ggplot(aes(education,fill=y)) + geom_bar(position="dodge")
+bank %>% ggplot(aes(education,fill=y)) + geom_bar(position="fill") + ylab("Proportion")
+length(grep("illiterate",bank$education))
+
+summary(bank$day_of_week)
+#Day of the week has 5 lrvrls, saturday and sunday were excluded.
+bank %>% ggplot(aes(day_of_week,fill=y)) + geom_bar(position="dodge") 
+bank %>% ggplot(aes(day_of_week,fill=y)) + geom_bar(position="fill") + ylab("Proportion")
+
+
+summary(bank$job)
+# <330 "unknown" values
+bank %>% ggplot(aes(job,fill=y)) + geom_bar(position="dodge")
+bank %>% ggplot(aes(job,fill=y)) + geom_bar(position="fill") + ylab("Proportion")
+
+
+
+#Pay doesn't really look like a continous variable as it only have a lot of 999's and a few value around 30 and below
+summary(bank$pdays)
+bank %>% ggplot(aes(pdays,fill=y)) + geom_histogram(position="dodge",binwidth=500)
+bank %>% filter(pdays<999) %>% ggplot(aes(pdays,stat(density),fill=y)) + geom_histogram(position="dodge")
+
+
+summary(bank$campaign)
+bank %>% ggplot(aes(campaign,fill=y)) + geom_histogram(position="fill",binwidth=11)
+bank %>% ggplot(aes(campaign,fill=y)) + geom_histogram(position="fill",binwidth=0.5)
+
+
+
+```
+
+
 This table shows the correlation between the numerical variables
 
  - nr.employed and emp.var.rate are 91% correlated. 
@@ -238,7 +289,7 @@ This table shows the correlation between the numerical variables
  - emp.var.rate and euribor3m are 97% correlated.
  - cons.price.idx and emp.var.rate are 78% correlated.
  - cons.price.idx and euribor3m are 69% correlated.
- - ons.price.idx and nr.employed are 52% correlated.
+ - cons.price.idx and nr.employed are 52% correlated.
  
 ```{r}
 
@@ -247,7 +298,7 @@ corrdfTraintable <- bank %>% keep(is.numeric) %>% na.omit %>% cor %>% view
 bank %>% keep(is.numeric) %>% na.omit %>% cor %>% corrplot("upper", addCoef.col = "black", number.digits = 2, number.cex = 0.5, method="shade", order="hclust", tl.srt=45, tl.cex = 0.8)
 view(corrdfTraintable)
 
-pairs
+
 
 plot_correlation(bank, type ='continous', 'Review.Date')
 ```
@@ -313,9 +364,6 @@ bank <- subset(bank, default!="unknown")
 bank <- subset(bank, education!="unknown")
 
 
-
-
-###cov.trob(bankbank[,c(1,11:14,16:20)])$cov
 ```
 
 
@@ -378,39 +426,21 @@ ShowPieChart("poutcome", "y", "Outcome by poutcome")
 ```
 
 
+GLM Logistic
+ Below are the variables that have VIF greater than 10
+-emp.var.rate
+-nr.employed
+-cons.price.idx
+-pdays
 
 ```{r}
 
+bankModel <- glm(y~job+marital+education+housing+duration+previous+contact+month+day_of_week+campaign+pdays+poutcome+emp.var.rate+cons.price.idx+cons.conf.idx+nr.employed, bank, family = binomial(link="logit"))
 
-## Check of the range of some of these continuous variables with histograms
- 
+(vif(bankModel)[,3])^2
 
-ggplot(data=bank,aes(x=duration)) + geom_histogram() +
-  stat_function(fun = dnorm, args = list(mean = mean(bank$duration, na.rm = TRUE), sd = sd(bank$duration, na.rm = TRUE))) +
-  labs(x = "duration", y = "Count", title = "Distribution of duration") +   theme_economist()
-ggplot(data=bank,aes(x=bank$campaign)) + geom_histogram() +
-  stat_function(fun = dnorm, args = list(mean = mean(bank$campaign, na.rm = TRUE), sd = sd(bank$campaign, na.rm = TRUE))) +
-  labs(x = "campaign", y = "Count", title = "Distribution of campaign") +   theme_economist()
-ggplot(data=bank,aes(x=bank$pdays)) + geom_histogram() +
-  stat_function(fun = dnorm, args = list(mean = mean(bank$campaign, na.rm = TRUE), sd = sd(bank$campaign, na.rm = TRUE))) +
-  labs(x = "pdays", y = "Count", title = "Distribution of pdays") +   theme_economist()
-ggplot(data=bank,aes(x=bank$previous)) + geom_histogram() +
-  stat_function(fun = dnorm, args = list(mean = mean(bank$previous, na.rm = TRUE), sd = sd(bank$campaign, na.rm = TRUE))) +
-  labs(x = "previous", y = "Count", title = "Distribution of previous") +   theme_economist()
-ggplot(data=bank,aes(x=bank$emp.var.rate)) + geom_histogram() +
-  stat_function(fun = dnorm, args = list(mean = mean(bank$emp.var.rate, na.rm = TRUE), sd = sd(bank$emp.var.rate, na.rm = TRUE))) +
-  labs(x = "emp.var.rate", y = "Count", title = "Distribution of emp.var.rate") +   theme_economist()
-ggplot(data=bank,aes(x=bank$cons.price.idx)) + geom_histogram() +
-  stat_function(fun = dnorm, args = list(mean = mean(bank$emp.var.rate, na.rm = TRUE), sd = sd(bank$cons.price.idx, na.rm = TRUE))) +
-  labs(x = "cons.price.idx", y = "Count", title = "Distribution of cons.price.idx") +   theme_economist()
-ggplot(data=bank,aes(x=bank$cons.conf.idx)) + geom_histogram() +
-  stat_function(fun = dnorm, args = list(mean = mean(bank$cons.conf.idx, na.rm = TRUE), sd = sd(bank$cons.conf.idx, na.rm = TRUE))) +
-  labs(x = "cons.conf.idx", y = "Count", title = "Distribution of cons.conf.idx") +   theme_economist()
-ggplot(data=bank,aes(x=bank$euribor3m)) + geom_histogram() +
-  stat_function(fun = dnorm, args = list(mean = mean(bank$euribor3m, na.rm = TRUE), sd = sd(bank$euribor3m, na.rm = TRUE))) +
-  labs(x = "euribor3m", y = "Count", title = "Distribution of euribor3m") +   theme_economist()
-ggplot(data=bank,aes(x=bank$nr.employed)) + geom_histogram() +
-  stat_function(fun = dnorm, args = list(mean = mean(bank$nr.employed, na.rm = TRUE), sd = sd(bank$nr.employed, na.rm = TRUE))) +
-  labs(x = "nr.employed", y = "Count", title = "Distribution of nr.employed") +   theme_economist()
+
 ```
+
+
 
