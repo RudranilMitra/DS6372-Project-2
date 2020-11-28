@@ -1,0 +1,433 @@
+---
+title: "DS6372_Project2"
+author: "Samuel Onalaja, Rudranil, Neil Benson"
+date: "11/11/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Library
+
+```{r}
+library(tidyverse)
+library(corrplot)
+library(mlbench)
+library(caret)
+library(skimr)
+library(mice)
+library(purrr)
+library(ggplot2)
+library(ggthemes)
+library(cowplot)
+library(class)
+library(e1071)
+library(grid)
+library(tidyr)
+library(stringr)
+library(naniar)
+library(car)
+library(MASS)
+library(caret)
+library(ROCR)
+library(glmnet)
+library(bestglm)
+library(car)
+library(ResourceSelection)
+library(randomForest)
+
+```
+
+Read in datafile
+```{r}
+
+library(readr)
+
+bank_additional_full <- read_delim("https://raw.githubusercontent.com/RudranilMitra/DS6372-Project-2/master/data/bank-additional-full.csv", ";", escape_double = FALSE, trim_ws = TRUE)
+
+
+head(bank_additional_full)
+View(bank_additional_full)
+```
+
+Data Summary statistics
+
+Notice all categorical variables are in charactor type so we have to convert all to factor.
+```{r}
+summary(bank_additional_full)
+dim(bank_additional_full)
+names(bank_additional_full)
+str(bank_additional_full)
+
+```
+
+
+Convert all character type variable to factor
+```{r}
+
+for (i in seq_along(bank_additional_full)){
+    if(is.character(bank_additional_full[[i]])){
+        bank_additional_full[[i]]=as.factor(bank_additional_full[[i]])   
+    }
+}
+
+str(bank_additional_full)
+```
+
+Addressing missing value
+
+The data set is completely observed, No missing value
+```{r}
+
+vis_miss(bank_additional_full) #This funtion is from package naniar and very effective for visualizing missing values
+md.pattern(bank_additional_full) #This function also address the pattern of a missing value, its from the The MICE package (stands for Multiple Imputation by Chained Equations)
+
+n_cols = dim(bank_additional_full)[2]
+for (i in 1:n_cols)
+{
+  print(c(colnames(bank_additional_full[i]), sum(is.na(bank_additional_full[i]))))
+}
+
+```
+
+
+
+EDA
+
+Notice some errors while trying to get a correlation so it was discovered that the record "No and Yes" in the "y" variable needs to be converted to "0" and "1"
+
+Notice how the respose variable (y) is skewed towards "0" which is no at over 89%
+
+```{r}
+
+
+bank <- bank_additional_full %>%
+  mutate(y = ifelse(y=="yes", 1, 0))
+
+bank$y <- as.factor(bank$y)
+
+table(bank$y)
+prop.table(table(bank$y))
+
+dim(bank)
+str(bank)
+
+#Observe data distribution of the response variable
+
+table(bank$y)
+prop.table(table(bank$y))
+
+
+####### Check of the range of some of these continuous variables with histograms
+ 
+###Distribution of duration
+#Durationis rightly skewed and contains some few outliers
+
+ggplot(data=bank,aes(x=duration)) + geom_histogram() +
+  stat_function(fun = dnorm, args = list(mean = mean(bank$duration, na.rm = TRUE), sd = sd(bank$duration, na.rm = TRUE))) +
+  labs(x = "duration", y = "Count", title = "Duration distribution") +   theme_economist()
+
+#summary stats of duraation
+summary(bank$duration)
+
+#checking out the distribution by the response variable
+#Distribution seems to be normally distributed
+ggplot(bank) + geom_histogram(aes(x = duration), binwidth = 0.1, col = "white") + facet_grid(y~., scales = "free") + scale_x_log10() +theme_bw()
+
+###Campaign distribution
+#Campaign is rightly skewed and contains some few outliers
+
+ggplot(data=bank,aes(x=campaign)) + geom_histogram() +
+  stat_function(fun = dnorm, args = list(mean = mean(bank$campaign, na.rm = TRUE), sd = sd(bank$campaign, na.rm = TRUE))) +
+  labs(x = "campaign", y = "Count", title = "Campaign distribution") +   theme_economist()
+
+#checking out the distribution by the response variable
+#Distribution is still rightly skewed.
+ggplot(bank) + geom_histogram(aes(x = campaign), binwidth = 0.1, col = "white") + facet_grid(y~., scales = "free") + scale_x_log10() +theme_bw()
+
+summary(bank$campaign)
+
+
+bank$lgcampaign = log(log(bank$campaign))
+
+
+#####Pdays distribution
+# It doesn't look like pday has much information as it only shows 2 values for "0' and "1000"
+
+ggplot(data=bank,aes(x=pdays)) + geom_histogram() +
+  stat_function(fun = dnorm, args = list(mean = mean(bank$campaign, na.rm = TRUE), sd = sd(bank$pdays, na.rm = TRUE))) +
+  labs(x = "pdays", y = "Count", title = "Pdays distribution") +   theme_economist()
+
+#checking out the pdays by the response variable
+#pdays is still rightly skewed.
+#
+ggplot(bank) + geom_histogram(aes(x = pdays), binwidth = 0.1, col = "white") + facet_grid(y~., scales = "free") + scale_x_log10() +theme_bw()
+
+summary(bank$pdays)
+
+
+
+####Previous distribution
+
+ggplot(data=bank,aes(x=previous)) + geom_histogram() +
+  stat_function(fun = dnorm, args = list(mean = mean(bank$previous, na.rm = TRUE), sd = sd(bank$previous, na.rm = TRUE))) +
+  labs(x = "previous", y = "Count", title = "Previous distribution") +   theme_economist()
+
+#checking out the Previous distribution by the response variable
+ggplot(bank) + geom_histogram(aes(x = previous), binwidth = 0.1, col = "white") + facet_grid(y~., scales = "free") + scale_x_log10() +theme_bw()
+
+summary(bank$pdays)
+
+
+####Emp.var.rate distribution
+
+ggplot(data=bank,aes(x=emp.var.rate)) + geom_histogram() +
+  stat_function(fun = dnorm, args = list(mean = mean(bank$emp.var.rate, na.rm = TRUE), sd = sd(bank$emp.var.rate, na.rm = TRUE))) +
+  labs(x = "emp.var.rate", y = "Count", title = "Emp.var.rate distribution") +   theme_economist()
+
+
+#Cons.price.idx distribution
+
+ggplot(data=bank,aes(x=bank$cons.price.idx)) + geom_histogram() +
+  stat_function(fun = dnorm, args = list(mean = mean(bank$emp.var.rate, na.rm = TRUE), sd = sd(bank$cons.price.idx, na.rm = TRUE))) +
+  labs(x = "cons.price.idx", y = "Count", title = "Cons.price.idx distribution") +   theme_economist()
+
+
+#Cons.conf.idx distribution
+
+ggplot(data=bank,aes(x=bank$cons.conf.idx)) + geom_histogram() +
+  stat_function(fun = dnorm, args = list(mean = mean(bank$cons.conf.idx, na.rm = TRUE), sd = sd(bank$cons.conf.idx, na.rm = TRUE))) +
+  labs(x = "cons.conf.idx", y = "Count", title = "Cons.conf.idx distribution") +   theme_economist()
+
+
+#Euribor3m distribution
+
+ggplot(data=bank,aes(x=bank$euribor3m)) + geom_histogram() +
+  stat_function(fun = dnorm, args = list(mean = mean(bank$euribor3m, na.rm = TRUE), sd = sd(bank$euribor3m, na.rm = TRUE))) +
+  labs(x = "euribor3m", y = "Count", title = "Euribor3m distribution") +   theme_economist()
+
+
+#Nr.employed distribution
+
+ggplot(data=bank,aes(x=bank$nr.employed)) + geom_histogram() +
+  stat_function(fun = dnorm, args = list(mean = mean(bank$nr.employed, na.rm = TRUE), sd = sd(bank$nr.employed, na.rm = TRUE))) +
+  labs(x = "nr.employed", y = "Count", title = "Nr.employed distribution") +   theme_economist()
+
+
+
+
+
+#checking for correlation Numerical variable vs response
+
+Attr <- "y"
+# Name explanatory variable
+ExplVar<- bank%>% keep(is.numeric) %>% colnames
+# Create function
+PlotFunc <- function(df, explanatory, response) {
+  ggplot(data = df) + geom_density(aes_string(x = explanatory), alpha = 0.5) + xlab(explanatory) + ylab("subscribed")
+}
+  # Density plot
+PlotFunc(bank, explanatory =  "age", response = "y")
+#  Create plot list for plot_grid function to reference
+PlotList <- lapply(ExplVar, function(x) PlotFunc(bank, x, y))
+#  Grid of all categorical variables plotted against Attrition
+plot_grid(plotlist = PlotList)
+
+
+
+```
+
+
+Factor vs repsponse variable
+```{r}
+
+summary(bank$month)
+# month only has 10 levels, missing jan and feb
+bank %>% ggplot(aes(month,fill=y)) + geom_bar(position="dodge") 
+bank %>% ggplot(aes(month,fill=y)) + geom_bar(position="fill") + ylab("Proportion")
+
+
+summary(bank$education)
+# 4% "unknown" values
+bank %>% ggplot(aes(education,fill=y)) + geom_bar(position="dodge")
+bank %>% ggplot(aes(education,fill=y)) + geom_bar(position="fill") + ylab("Proportion")
+length(grep("illiterate",bank$education))
+
+summary(bank$day_of_week)
+#Day of the week has 5 lrvrls, saturday and sunday were excluded.
+bank %>% ggplot(aes(day_of_week,fill=y)) + geom_bar(position="dodge") 
+bank %>% ggplot(aes(day_of_week,fill=y)) + geom_bar(position="fill") + ylab("Proportion")
+
+
+summary(bank$job)
+# <330 "unknown" values
+bank %>% ggplot(aes(job,fill=y)) + geom_bar(position="dodge")
+bank %>% ggplot(aes(job,fill=y)) + geom_bar(position="fill") + ylab("Proportion")
+
+
+
+#Pay doesn't really look like a continous variable as it only have a lot of 999's and a few value around 30 and below
+summary(bank$pdays)
+bank %>% ggplot(aes(pdays,fill=y)) + geom_histogram(position="dodge",binwidth=500)
+bank %>% filter(pdays<999) %>% ggplot(aes(pdays,stat(density),fill=y)) + geom_histogram(position="dodge")
+
+
+summary(bank$campaign)
+bank %>% ggplot(aes(campaign,fill=y)) + geom_histogram(position="fill",binwidth=11)
+bank %>% ggplot(aes(campaign,fill=y)) + geom_histogram(position="fill",binwidth=0.5)
+
+
+
+```
+
+
+This table shows the correlation between the numerical variables
+
+ - nr.employed and emp.var.rate are 91% correlated. 
+ - nr.employed and euribor3m are 95% correlated.
+ - emp.var.rate and euribor3m are 97% correlated.
+ - cons.price.idx and emp.var.rate are 78% correlated.
+ - cons.price.idx and euribor3m are 69% correlated.
+ - cons.price.idx and nr.employed are 52% correlated.
+ 
+```{r}
+
+
+corrdfTraintable <- bank %>% keep(is.numeric) %>% na.omit %>% cor %>% view
+bank %>% keep(is.numeric) %>% na.omit %>% cor %>% corrplot("upper", addCoef.col = "black", number.digits = 2, number.cex = 0.5, method="shade", order="hclust", tl.srt=45, tl.cex = 0.8)
+view(corrdfTraintable)
+
+
+
+plot_correlation(bank, type ='continous', 'Review.Date')
+```
+
+
+
+Using the package SmartEda for data exploration
+
+- check out the distributiion of numerical variable and categorical variable.
+
+```{r}
+library("DataExplorer")
+library('SmartEDA')
+
+ExpData(data = bank, type = 1)
+
+BankPlot <- ExpNumViz(bank, target = NULL, nlim = 10, Page = c(3,3), sample = 9)
+
+BankPlotn <- ExpNumViz(bank, target = "y", nlim = 10, Page = c(3,3), sample = 9)
+
+Bankplot2 <- ExpCatViz(bank,target= "y",clim=10,margin=2,Page = c(3,3),sample=9)
+
+
+pairs(bank[,c(1,11:14,16:20)], col = bank$y)
+
+cor(bank[,c(1,11:14,16:20)], col = bank$y)
+```
+
+Missing values are disguided as unknwown values in the data set and we devised a code to show them all
+
+ default           8597
+ education         1731
+ housing            990
+ loan               990
+ job                330
+ marital             80
+ 
+ For Marital, housing and job it is save to remove the unknow values as the so little they won't have an effect on the rest of the disrtibution
+ 
+ - Looking at default is has no information as it is highly skewed towards "no" as only 3 counts comes up as "yes" so we are removing "default" as well.
+ 
+ 
+ 
+ 
+```{r}
+bank %>% 
+  summarise_all(list(~sum(. == "unknown"))) %>% 
+  gather(key = "variable", value = "nr_unknown") %>% 
+  arrange(-nr_unknown)
+
+summary(bank$job)
+summary(bank$default)
+summary(bank$education)
+summary(bank$loan)
+summary(bank$marital)
+summary(bank$housing)
+
+bank <- subset(bank, job!="unknown")
+bank <- subset(bank, marital!="unknown")
+bank <- subset(bank, housing!="unknown")
+bank <- subset(bank, loan!="unknown")
+bank <- subset(bank, default!="unknown")
+bank <- subset(bank, education!="unknown")
+
+
+```
+
+
+
+```{r}
+
+library("dplyr")
+ShowPieChart <- function(columnBy, columnToShow, titleName)
+{
+  df <- dplyr::group_by(bank, .dots = c(columnBy, columnToShow)) %>%
+    dplyr::summarize(counts = n()) %>%
+    dplyr::mutate(perc = (counts / sum(counts)) * 100) %>%
+    dplyr::arrange_(.dots=c(columnBy, columnToShow))
+ 
+  
+  # preparing the plot
+  ggplot2::ggplot(df, aes('', counts)) +
+    geom_col(
+      position = 'fill',
+      color = 'black',
+      width = 1,
+      aes(fill = y)
+    ) +
+    ggtitle(titleName) +
+    facet_wrap(paste("~",columnBy), labeller = "label_both") +
+    geom_label(
+      aes(label = paste0(round(perc), "%"), group = "y"),
+      position = position_fill(vjust = 0.5),
+      color = 'black',
+      size = 5,
+      show.legend = FALSE
+    ) + scale_fill_discrete(name = "Outcome:") +
+    coord_polar(theta = "y")
+}
+ShowPieChart("job", "y", "Outcome by Job")
+ShowPieChart("marital", "y", "Outcome by Marital Status")
+ShowPieChart("education", "y", "Outcome by Education")
+ShowPieChart("housing", "y", "Outcome by Housing")
+ShowPieChart("default", "y", "Outcome by Credit In Default")
+ShowPieChart("loan", "y", "Outcome by loan status")
+ShowPieChart("contact", "y", "Outcome by Contact")
+ShowPieChart("poutcome", "y", "Outcome by poutcome")
+ 
+```
+
+
+GLM Logistic
+ Below are the variables that have VIF greater than 10
+-emp.var.rate
+-nr.employed
+-cons.price.idx
+-pdays
+
+```{r}
+
+bankModel <- glm(y~job+marital+education+housing+duration+previous+contact+month+day_of_week+campaign+pdays+poutcome+emp.var.rate+cons.price.idx+cons.conf.idx+nr.employed, bank, family = binomial(link="logit"))
+
+(vif(bankModel)[,3])^2
+
+
+```
+
+
+
