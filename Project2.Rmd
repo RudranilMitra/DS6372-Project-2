@@ -62,7 +62,9 @@ bank_additional_full <- read_delim("https://raw.githubusercontent.com/RudranilMi
 
 
 head(bank_additional_full)
-# View(bank_additional_full)
+
+# creating my own not in operator
+`%notin%` <- Negate(`%in%`)
 ```
   
 
@@ -110,8 +112,7 @@ for (i in 1:n_cols)
 ##EDA
 Notice some errors while trying to get a correlation so it was discovered that the record "No and Yes" in the "y" variable needs to be converted to "0" and "1"
 Notice how the response variable (y) is skewed towards "0" which is no at over 89%. We will review and address this imbalance later.
-
-```{r}
+```{r warning=FALSE,message=FALSE}
 bank <- bank_additional_full %>%
   mutate(y = ifelse(y=="yes", 1, 0))
 
@@ -219,21 +220,22 @@ ggplot(data=bank,aes(x=bank$nr.employed)) + geom_histogram() +
   labs(x = "nr.employed", y = "Count", title = "Nr.employed distribution") +   theme_economist()
 
 
-
-
-
 #checking for correlation Numerical variable vs response
 Attr <- "y"
+
 # Name explanatory variable
 ExplVar<- bank%>% keep(is.numeric) %>% colnames
+
 # Create function
 PlotFunc <- function(df, explanatory, response) {
   ggplot(data = df) + geom_density(aes_string(x = explanatory), alpha = 0.5) + xlab(explanatory) + ylab("subscribed")
 }
   # Density plot
 PlotFunc(bank, explanatory =  "age", response = "y")
+
 #  Create plot list for plot_grid function to reference
 PlotList <- lapply(ExplVar, function(x) PlotFunc(bank, x, y))
+
 #  Grid of all categorical variables plotted against Attrition
 plot_grid(plotlist = PlotList)
 
@@ -270,10 +272,14 @@ bank %>% ggplot(aes(job,fill=y)) + geom_bar(position="fill") + ylab("Proportion"
 
 
 
-#Pay doesn't really look like a continous variable as it only have a lot of 999's and a few value around 30 and below
+#Pdays doesn't really look like a continuous variable as it only have a lot of 999's and a few value around 30 and below
 summary(bank$pdays)
 bank %>% ggplot(aes(pdays,fill=y)) + geom_histogram(position="dodge",binwidth=500)
 bank %>% filter(pdays<999) %>% ggplot(aes(pdays,stat(density),fill=y)) + geom_histogram(position="dodge")
+
+
+# because this variable is so unbalanced and more than 95% of them are value 999, there isn't much value to including this variable - it's not really telling us much, if anything, and 999 seems like it should be null, or unknown
+ftable(addmargins(table(bank$y,bank$pdays)))
 
 
 summary(bank$campaign)
@@ -294,19 +300,20 @@ This table shows the correlation between the numerical variables
  - cons.price.idx and euribor3m are 69% correlated.
  - cons.price.idx and nr.employed are 52% correlated.
  
+Later we will examine pairwise multicolinearity within the continuous explanatory variables and VIF to see if which explanatory variables may be redundant.
+
 ```{r}
 corrdfTraintable <- bank %>% keep(is.numeric) %>% na.omit %>% cor %>% view
+
 bank[,-22] %>% keep(is.numeric) %>% na.omit %>% cor %>% corrplot("upper", addCoef.col = "black", number.digits = 2, number.cex = 0.5, method="shade", order = "hclust", tl.srt=45, tl.cex = 0.8)
+
 view(corrdfTraintable)
 
-# plot_correlation(bank, type ='continous', 'Review.Date')
 ```
 
 
-
 ## Using the package SmartEda for data exploration
-- check out the distributiion of numerical variable and categorical variable.
-
+- check out the distribution of numerical variable and categorical variable.  
 ```{r}
 
 
@@ -319,11 +326,46 @@ BankPlotn <- ExpNumViz(bank, target = "y", nlim = 10, Page = c(3,3), sample = 9)
 Bankplot2 <- ExpCatViz(bank,target= "y",clim=10,margin=2,Page = c(3,3),sample=9)
 
 pairs(bank[,c(1,11:14,16:20)], col = bank$y)
-# 
-# cor(bank[,c(1,11:14,16:20)], col = bank$y)
+```
+We don't observe any multicolinearity within the numeric responses, and don't see any need to remove any based on pairwise comparison. 
+
+```{r}
+
+my.cor <- cor(bank[,c(1,11:14,16:20)])
+
+library(gplots)
+library(ggplot2)
+heatmap.2(my.cor,col=redgreen(75), 
+          density.info="none", trace="none", dendrogram=c("row"), 
+          symm=F,symkey=T,symbreaks=T, scale="none")
+
+
+#Another option here would be to do PCA among the continous predictors to see
+#if they seperate out.  Or a heatmap.
+pc.result<-prcomp(bank[,c(1,11:14,16:20)],scale.=TRUE)
+pc.scores<-pc.result$x
+pc.scores<-data.frame(pc.scores)
+pc.scores$y<-bank$y
+
+
+#Use ggplot2 to plot the first few pc's
+ggplot(data = pc.scores, aes(x = PC1, y = PC2)) +
+  geom_point(aes(col=y), size=1)+
+  ggtitle("PCA of y")
+
+ggplot(data = pc.scores, aes(x = PC2, y = PC3)) +
+  geom_point(aes(col=y), size=1)+
+  ggtitle("PCA of y")
+
+ggplot(data = pc.scores, aes(x = PC3, y = PC4)) +
+  geom_point(aes(col=y), size=1)+
+  ggtitle("PCA of y")
+
+# we don't really see much separation with PCA
+
 ```
 
-Missing values are disguised as unknwown values in the data set and we devised a code to show them all
+Missing values are disguised as unknown values in the data set and we devised a code to show them all
 
  default           8597
  education         1731
@@ -410,17 +452,37 @@ GLM Logistic
  Below are the variables that have VIF greater than 10
 -emp.var.rate
 -nr.employed
+-euribor3m
 -cons.price.idx
--pdays
+
+Because `emp.var.rate`, `nr.employed`, `euribor3m`, and `cons.price.idx` are so highly correlated with each other, and all have high VIFs, we will start by removing `nr.employed` first, and re-evaluate. 
 
 ```{r}
+cols <- c(colnames(bank))
 
-bankModel <- glm(y~job+marital+education+housing+duration+previous+contact+month+day_of_week+campaign+pdays+poutcome+emp.var.rate+cons.price.idx+cons.conf.idx+nr.employed, bank, family = binomial(link="logit"))
+# removing columns that do not provide any value and the response
+cols <- cols[cols %notin% c("y","default","lgcampaign","pdays")]
+
+fmla.all <- as.formula(paste("y ~ ", paste(cols, collapse= "+")))
+
+bankModel <- glm(fmla.all, bank, family = binomial(link="logit"))
 
 (vif(bankModel)[,3])^2
 
 
+# removing columns that are highly correlated and with high VIF
+cols.lowvif <- cols[cols %notin% c("nr.employed","emp.var.rate")]
+
+# creating the formula for a full model after removing the necessary variables
+fmla.lowvif <- as.formula(paste("y ~ ", paste(cols.lowvif, collapse= "+")))
+
+bankModel.lowvif <- glm(fmla.lowvif, bank, family = binomial(link="logit"))
+
+# re-examining the VIF after removing variables with high VIF
+(vif(bankModel.lowvif)[,3])^2
+
 ```
+
 
 ## Checking the Balance of the Data
 Because of the imbalance in the data, we will later downsample to balance the data to train our models.
@@ -435,7 +497,7 @@ y0 <- bank %>% filter(y == "0")
 y1 <- bank %>% filter(y == "1")
 
 
-# downsampling to balance y
+# downsampling to balance y; Will also use this seed for creating training and test sets
 set.seed(43)
       
 
@@ -448,6 +510,7 @@ downsample_bank_DF <- rbind(y0sampleDF, y1)
 ```
 
 ## Create Training and Test Samples
+From the downsampled bank data, we will break the data set up into training and test to fit our basic models
 ```{r}
 sample <- sample(c(TRUE, FALSE), nrow(downsample_bank_DF), replace=TRUE, prob=c(0.7,0.3))
 train_bank <- downsample_bank_DF[sample, ]
@@ -458,23 +521,14 @@ test_bank <- downsample_bank_DF[!sample, ]
 
 ```{r,warning=FALSE,message=FALSE}
 
-# creating my own not in operator
-`%notin%` <- Negate(`%in%`)
-
-# remove response columns from col list to build formula
-lmcols <- c(colnames(downsample_bank_DF))
-
-# removing the response and default columns. Removed "default" because after correction, it became single level factor, which bears no value in prediction. 
-# Removing transformed lgcampaign because of its negative infinity values
-lmcols <- lmcols[lmcols %notin% c("y","default","lgcampaign")]
-lmfmla <- as.formula(paste("y ~ ", paste(lmcols, collapse= "+")))
+# building the formula for a full model
+fmla.full <- fmla.lowvif
 
 # define intercept-only model
 intercept_only_model <- glm(y ~ 1, data = train_bank, family="binomial")
 
-
 # define total model
-total_model <- glm(lmfmla, data = train_bank, family="binomial")
+total_model <- glm(fmla.full, data = train_bank, family="binomial")
 
 
 # set the different models using a variety of feature selection methods.
@@ -488,26 +542,7 @@ bank_fwd_model <- step(intercept_only_model,
                          direction = "forward", scope = formula(total_model), trace=FALSE)
 ```
 
-#### Summary of the First Backward Model
-against the training data set  
-```{r,echo=FALSE,warning=FALSE,message=FALSE}
-summary(bank_back_model)
-```
-  
-  
-#### Summary of the First Stepwise Model
-against the training data set  
-```{r,echo=FALSE,warning=FALSE,message=FALSE}
-summary(bank_step_model)
-```
-  
-  
-#### Summary of the First Forward Model
-against the training data set  
-```{r,echo=FALSE,warning=FALSE,message=FALSE}
-summary(bank_fwd_model)
-```
-
+# function to test models against a test set
 ```{r}
 # function to test the models. Returns accuracy, sensitivity, and specificity of the test data set
 modelOptimization <- function(train_model, test_dataframe, ResponseCol, threshold){
@@ -566,10 +601,10 @@ And reviewing their predictive performance against the test set with a threshold
 ```{r}
 threshold <- .5
 
+# adding the output from modelOptimization function to a dataframe to compare statistics about each model.
 bank_back_model_fmla <- bank_back_model[["formula"]]
 back_model_row <- c(Model="Back Model", modelOptimization(bank_back_model,test_bank,"y", threshold), fmla=bank_back_model_fmla)
 
-back_model_row[[2]]
 
 bank_step_model_fmla <- bank_step_model[["formula"]]
 step_model_row <- c(Model="Step Model", modelOptimization(bank_step_model,test_bank,"y", threshold), fmla=bank_step_model_fmla)
@@ -580,5 +615,29 @@ fwd_model_row <- c(Model="Fwd Model", modelOptimization(bank_fwd_model,test_bank
 
 model_comparison_df <- rbind(back_model_row, step_model_row, fwd_model_row)
 model_comparison_df <- data.frame(model_comparison_df)
+
 view(model_comparison_df)
+```
+All 3 feature selection methods reduced the variables down to the same set of variables for each, and all three produced the same accuracy, misclassifaction, sensitivity, specificity, false positive rate, and false negative rate when applied to a test data set. They are the same by all definitions.
+
+The model we will move forward with for interpretation is as follows:
+`y ~ duration + euribor3m + month + poutcome + job + campaign + marital + previous + cons.conf.idx + cons.price.idx`  
+  
+  
+#### Summary of the main interpretable model
+against the training data set  
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+fmla.main <- as.formula(bank_fwd_model[["formula"]])
+
+model.main <- glm(fmla.main, data = train_bank, family = binomial(link="logit"))
+
+summary(model.main)
+```
+
+
+```{r}
+(vif(model.main)[,3])^2
+hoslem.test(model.main$y, fitted(model.main), g=10)
+exp(cbind("Odds ratio" = coef(model.main), confint.default(model.main, level = 0.95)))
+vif(model.main)
 ```
