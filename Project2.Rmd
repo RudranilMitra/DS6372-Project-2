@@ -65,6 +65,9 @@ head(bank_additional_full)
 
 # creating my own not in operator
 `%notin%` <- Negate(`%in%`)
+
+# removing duration
+bank_additional_full <- bank_additional_full[,-11]
 ```
   
 
@@ -131,20 +134,6 @@ prop.table(table(bank$y))
 
 
 ####### Check of the range of some of these continuous variables with histograms
- 
-###Distribution of duration
-#Durationis rightly skewed and contains some few outliers
-
-ggplot(data=bank,aes(x=duration)) + geom_histogram() +
-  stat_function(fun = dnorm, args = list(mean = mean(bank$duration, na.rm = TRUE), sd = sd(bank$duration, na.rm = TRUE))) +
-  labs(x = "duration", y = "Count", title = "Duration distribution") +   theme_economist()
-
-#summary stats of duraation
-summary(bank$duration)
-
-#checking out the distribution by the response variable
-#Distribution seems to be normally distributed
-ggplot(bank) + geom_histogram(aes(x = duration), binwidth = 0.1, col = "white") + facet_grid(y~., scales = "free") + scale_x_log10() +theme_bw()
 
 ###Campaign distribution
 #Campaign is rightly skewed and contains some few outliers
@@ -160,7 +149,7 @@ ggplot(bank) + geom_histogram(aes(x = campaign), binwidth = 0.1, col = "white") 
 summary(bank$campaign)
 
 
-bank$lgcampaign = log(log(bank$campaign))
+# bank$lgcampaign = log(log(bank$campaign))
 
 
 #####Pdays distribution
@@ -305,7 +294,7 @@ Later we will examine pairwise multicolinearity within the continuous explanator
 ```{r}
 corrdfTraintable <- bank %>% keep(is.numeric) %>% na.omit %>% cor %>% view
 
-bank[,-22] %>% keep(is.numeric) %>% na.omit %>% cor %>% corrplot("upper", addCoef.col = "black", number.digits = 2, number.cex = 0.5, method="shade", order = "hclust", tl.srt=45, tl.cex = 0.8)
+bank[,-21] %>% keep(is.numeric) %>% na.omit %>% cor %>% corrplot("upper", addCoef.col = "black", number.digits = 2, number.cex = 0.5, method="shade", order = "hclust", tl.srt=45, tl.cex = 0.8)
 
 view(corrdfTraintable)
 
@@ -319,19 +308,19 @@ view(corrdfTraintable)
 
 ExpData(data = bank, type = 1)
 
-BankPlot <- ExpNumViz(bank, target = NULL, nlim = 10, Page = c(3,3), sample = 9)
+BankPlot <- ExpNumViz(bank, target = NULL, nlim = 10, Page = c(3,3), sample = 8)
 
-BankPlotn <- ExpNumViz(bank, target = "y", nlim = 10, Page = c(3,3), sample = 9)
+BankPlotn <- ExpNumViz(bank, target = "y", nlim = 10, Page = c(3,3), sample = 8)
 
-Bankplot2 <- ExpCatViz(bank,target= "y",clim=10,margin=2,Page = c(3,3),sample=9)
+Bankplot2 <- ExpCatViz(bank, target= "y", clim=10, margin=2, Page = c(3,3), sample=8)
 
-pairs(bank[,c(1,11:14,16:20)], col = bank$y)
+pairs(bank %>% keep(is.numeric) %>% na.omit, col = bank$y)
 ```
 We don't observe any multicolinearity within the numeric responses, and don't see any need to remove any based on pairwise comparison. 
 
 ```{r}
 
-my.cor <- cor(bank[,c(1,11:14,16:20)])
+my.cor <- cor(bank %>% keep(is.numeric) %>% na.omit)
 
 library(gplots)
 library(ggplot2)
@@ -342,7 +331,7 @@ heatmap.2(my.cor,col=redgreen(75),
 
 #Another option here would be to do PCA among the continous predictors to see
 #if they seperate out.  Or a heatmap.
-pc.result<-prcomp(bank[,c(1,11:14,16:20)],scale.=TRUE)
+pc.result<-prcomp(bank %>% keep(is.numeric) %>% na.omit,scale.=TRUE)
 pc.scores<-pc.result$x
 pc.scores<-data.frame(pc.scores)
 pc.scores$y<-bank$y
@@ -621,7 +610,7 @@ view(model_comparison_df)
 All 3 feature selection methods reduced the variables down to the same set of variables for each, and all three produced the same accuracy, misclassifaction, sensitivity, specificity, false positive rate, and false negative rate when applied to a test data set. They are the same by all definitions.
 
 The model we will move forward with for interpretation is as follows:
-`y ~ duration + euribor3m + month + poutcome + job + campaign + marital + previous + cons.conf.idx + cons.price.idx`  
+`y ~ euribor3m + month + poutcome + job + campaign + marital + previous + cons.conf.idx + cons.price.idx`  
   
   
 #### Summary of the main interpretable model
