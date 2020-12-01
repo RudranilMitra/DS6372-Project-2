@@ -2,8 +2,10 @@
 title: "DS6372_Project2"
 author: "Samuel Onalaja, Rudranil, Neil Benson"
 date: "11/11/2020"
-output: html_document
-editor_options: 
+output:
+  word_document: default
+  html_document: default
+editor_options:
   chunk_output_type: console
 ---
 
@@ -294,7 +296,7 @@ Later we will examine pairwise multicolinearity within the continuous explanator
 ```{r}
 corrdfTraintable <- bank %>% keep(is.numeric) %>% na.omit %>% cor %>% view
 
-bank[,-21] %>% keep(is.numeric) %>% na.omit %>% cor %>% corrplot("upper", addCoef.col = "black", number.digits = 2, number.cex = 0.5, method="shade", order = "hclust", tl.srt=45, tl.cex = 0.8)
+bank %>% keep(is.numeric) %>% na.omit %>% cor %>% corrplot("upper", addCoef.col = "black", number.digits = 2, number.cex = 0.5, method="shade", order = "hclust", tl.srt=45, tl.cex = 0.8)
 
 view(corrdfTraintable)
 
