@@ -45,14 +45,11 @@ library('SmartEDA')
 
 ```
 ## Introduction
-<!-- What factors impact life expectancy?  Can life expectancy be predicted?  The World Health Organization (WHO) maintains a database with life expectancy information for all countries by year along with other variables that could contribute to life expectancy.  The data falls into four main areas:  health, economic, social, and immunization.  This project makes use of the WHO data to better understand life expectancy and how to predict it.  In this paper, three different models will be explored: -->
-<!-- 1)      A regression model to identify key relationships between life expectancy and factors related to health, economic, social, and immunization. -->
-<!-- 2)      A parametric regression model to predict life expectancy. -->
-<!-- 3)      A non-parametric regression model to predict life expectancy. -->
+What factors impact subscription?  Can subscription be predicted?  Our client, a bank, maintains a database with subscription information for all users.  The data covers information related to demographics, employment, banking history, campaign exposure, and consumer/price index confidences. This project makes use of the existing  bank data to better understand subscriptions and how to predict them.  In this paper, several different models will be explored. 
 
 
 ## Data Description
-<!-- The Life Expectancy dataset used in this analysis was collected from the WHO and made available at Kaggle:  https://www.kaggle.com/kumarajarshi/life-expectancy-who.  It includes data from 193 countries for the years 2000 – 2015.  The 2938 rows contained in the dataset include average life expectancy per country for each year.  In addition to the average life expectancy, there are 21 columns of data related to health, economic, social, and immunization.    -->
+The bank  dataset used in this analysis was collected by our client, the bank.  It includes data from users age xx to xx and their subscription dates by month and day of week.  The 41,188 rows contained in the dataset include demographic information like age, job, marital status, education, and housing for each subscriber.
   
   
 ##Read in datafile
