@@ -475,17 +475,29 @@ bankModel.lowvif <- glm(fmla.lowvif, bank, family = binomial(link="logit"))
 ```
 
 
+## Create Training and Test Samples
+From the bank data, we will break the data set up into training and test to fit our basic models
+```{r}
+sample <- sample(c(TRUE, FALSE), nrow(bank), replace=TRUE, prob=c(0.7,0.3))
+train_bank <- bank[sample, ]
+test_bank <- bank[!sample, ]  
+
+```
+
+
 ## Checking the Balance of the Data
-Because of the imbalance in the data, we will later downsample to balance the data to train our models.
+Because of the imbalance in the data, we will later down sample to balance the data to train our models.
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
 print(bank %>% count(bank$y))
 ```
 
+
 ## Down sampling the data
+Down sampling the training data set
 ```{r}
 # split the dataframe into those who attritioned and those who did not to create a general overall profile of the two
-y0 <- bank %>% filter(y == "0")
-y1 <- bank %>% filter(y == "1")
+y0 <- train_bank %>% filter(y == "0")
+y1 <- train_bank %>% filter(y == "1")
 
 
 # downsampling to balance y; Will also use this seed for creating training and test sets
@@ -500,16 +512,9 @@ downsample_bank_DF <- rbind(y0sampleDF, y1)
 
 ```
 
-## Create Training and Test Samples
-From the downsampled bank data, we will break the data set up into training and test to fit our basic models
-```{r}
-sample <- sample(c(TRUE, FALSE), nrow(downsample_bank_DF), replace=TRUE, prob=c(0.7,0.3))
-train_bank <- downsample_bank_DF[sample, ]
-test_bank <- downsample_bank_DF[!sample, ]  
-
-```
 
 
+## Models
 ```{r,warning=FALSE,message=FALSE}
 
 # building the formula for a full model
@@ -533,7 +538,8 @@ bank_fwd_model <- step(intercept_only_model,
                          direction = "forward", scope = formula(total_model), trace=FALSE)
 ```
 
-# function to test models against a test set
+
+# Function to test models against a test set
 ```{r}
 # function to test the models. Returns accuracy, sensitivity, and specificity of the test data set
 modelOptimization <- function(train_model, test_dataframe, ResponseCol, threshold){
@@ -587,7 +593,8 @@ modelOptimization <- function(train_model, test_dataframe, ResponseCol, threshol
 }
 ```
 
-# Applying the trained models to the test sets
+
+## Applying the trained models to the test sets
 And reviewing their predictive performance against the test set with a threshold of .5
 ```{r}
 threshold <- .5
