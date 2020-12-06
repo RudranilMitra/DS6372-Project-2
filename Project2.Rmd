@@ -632,3 +632,15 @@ hoslem.test(model.main$y, fitted(model.main), g=10)
 exp(cbind("Odds ratio" = coef(model.main), confint.default(model.main, level = 0.95)))
 vif(model.main)
 ```
+
+
+## #Residual Diagnostics
+```{r}
+plot(model.main)
+```
+
+
+## ROC Curve – Against Test Data Set
+```{r}
+
+```
