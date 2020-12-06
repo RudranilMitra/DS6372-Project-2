@@ -23,6 +23,7 @@ library(mice)
 library(purrr)
 library(ggplot2)
 library(ggthemes)
+library(glmnet)
 library(cowplot)
 library(class)
 library(e1071)
@@ -39,6 +40,11 @@ library(bestglm)
 library(car)
 library(ResourceSelection)
 library(randomForest)
+library(epitools)
+library(MASS)
+library(GGally)
+library(ROCR)
+library(MASS)
 
 ```
 
@@ -426,5 +432,333 @@ bankModel <- glm(y~job+marital+education+housing+duration+previous+contact+month
 
 ```
 
+```{r}
+################################################################################################################
+bank.additional.full = read.csv('C:\\SMU_MSDS\\MSDS_6372_Applied_Statistics\\Project2\\bank-additional\\bank-additional-full.csv',header=T)
+bank = bank.additional.full
+################################################################################################################
+summary(bank)
+#round(prop.table(table(bank$default,bank$y),margin=1),4)
+
+bank = bank %>% dplyr::select(-default)
+bank = bank %>% dplyr::select(-poutcome)
+bank = bank %>% dplyr::select(-duration)
+bank = bank %>% dplyr::select(-pdays)
+bank = bank %>% dplyr::filter(marital!='unknown')
+bank = bank %>% dplyr::filter(housing!='unknown')
+bank = bank %>% dplyr::filter(loan!='unknown')
+bank = bank %>% dplyr::filter(job!='unknown')
+bank = bank %>% dplyr::filter(education!='unknown')
+bank$education = ifelse((bank$education=='illiterate'),'basic.4y',bank$education)
+
+############################
+bank$job = as.factor(bank$job)
+bank$marital = as.factor(bank$marital)
+bank$education = as.factor(bank$education)
+bank$housing = as.factor(bank$housing)
+bank$loan = as.factor(bank$loan)
+bank$contact = as.factor(bank$contact)
+bank$month = as.factor(bank$month)
+bank$day_of_week = as.factor(bank$day_of_week)
+bank$y = as.factor(bank$y)
+############################
+summary(bank)
+detach(bank)
+attach(bank)
+############################## EDA for Interaction Terms############################## 
+
+set.seed(43)
+index<-sample(1:nrow(bank),nrow(bank)*0.7,replace=FALSE)
+train<-bank[index,]
+test<-bank[-index,]
+train %>% group_by(y) %>% count()
+test %>% group_by(y) %>% count()
+
+train_ds = downSample(x=train[,1:17],y=train$y)
+train_ds = train_ds %>% dplyr::rename(outcome=Class)
+train_ds %>% group_by(outcome) %>% count()
+test_ds = test %>% dplyr::rename(outcome=y)
+
+
+mysummary<-function(x){
+  result<-c(length(x),mean(x),sd(x),sd(x)/length(x),min(x),max(x),IQR(x))
+  names(result)<-c("N","Mean","SD","SE","Min","Max","IQR")
+  return(result)
+}
+
+sumstats<-aggregate(age~marital*outcome,data=train_ds,mysummary)
+sumstats<-cbind(sumstats[,1:2],sumstats[,-(1:2)])
+sumstats
+
+ggplot(sumstats,aes(x=marital,y=Mean,group=outcome,colour=outcome))+
+  ylab("Age")+
+  geom_line()+
+  geom_point()+
+  geom_errorbar(aes(ymin=Mean-SD,ymax=Mean+SD),width=.1)
+
+sumstats<-aggregate(age~education*outcome,data=train_ds,mysummary)
+sumstats<-cbind(sumstats[,1:2],sumstats[,-(1:2)])
+sumstats
+
+ggplot(sumstats,aes(x=education,y=Mean,group=outcome,colour=outcome))+
+  ylab("Age")+
+  geom_line()+
+  geom_point()+
+  geom_errorbar(aes(ymin=Mean-SD,ymax=Mean+SD),width=.1)
+
+sumstats<-aggregate(age~job*outcome,data=train_ds,mysummary)
+sumstats<-cbind(sumstats[,1:2],sumstats[,-(1:2)])
+sumstats
+
+ggplot(sumstats,aes(x=job,y=Mean,group=outcome,colour=outcome))+
+  ylab("Age")+
+  geom_line()+
+  geom_point()+
+  geom_errorbar(aes(ymin=Mean-SD,ymax=Mean+SD),width=.1)
+
+################################ Model Building ###################################
+
+
+# full model
+full.log.ds <-
+  glm(
+    outcome ~ age + 
+      marital +
+      education +
+      housing +
+      loan +
+      contact +
+      month +
+      day_of_week +
+      campaign +
+      previous +
+      emp.var.rate +
+      cons.price.idx +
+      cons.conf.idx +
+      education:housing+
+      age:job+
+      age:marital+
+      age:education+
+      month:day_of_week,
+    family = "binomial"(link="logit"),
+    data = train_ds
+  )
+
+# stepwise model
+step.log.ds <- full.log.ds %>% stepAIC(trace = T)
+
+# lasso model
+lasso.log.ds <-
+  cv.glmnet(
+    model.matrix(outcome ~ age + 
+                   marital +
+                   education +
+                   housing +
+                   loan +
+                   contact +
+                   month +
+                   day_of_week +
+                   campaign +
+                   previous +
+                   emp.var.rate +
+                   cons.price.idx +
+                   cons.conf.idx +
+                   education:housing+
+                   age:job+
+                   age:marital+
+                   age:education+
+                   month:day_of_week, train_ds),
+    train_ds$outcome,
+    family = "binomial",
+    type.measure = "class",
+    nlambda = 1000
+  )
+
+plot(lasso.log.ds)
+coef(lasso.log.ds, s = "lambda.min")
+
+final.lasso.log.ds <-
+  glmnet(
+    model.matrix(outcome ~ age + 
+                   marital +
+                   education +
+                   housing +
+                   loan +
+                   contact +
+                   month +
+                   day_of_week +
+                   #pdays +
+                   campaign +
+                   previous +
+                   emp.var.rate +
+                   cons.price.idx +
+                   cons.conf.idx +
+                   education:housing+
+                   age:job+
+                   age:marital+
+                   age:education+
+                   month:day_of_week, train_ds),
+    train_ds$outcome,
+    family = "binomial",
+    lambda = lasso.log.ds$lambda.min
+  )
+
+# LDA model
+lda.log.ds <- lda(
+  outcome ~ age + campaign + previous +
+    emp.var.rate + cons.price.idx + cons.conf.idx +
+    euribor3m + nr.employed,
+  data = train_ds
+)
+
+#QDA Model
+qda.log.ds <- qda(
+  outcome ~ age + campaign + previous +
+    emp.var.rate + cons.price.idx + cons.conf.idx +
+    euribor3m + nr.employed,
+  data = train_ds
+)
+
+# Random Forest
+train.rf<-randomForest(y~age + 
+                         marital +
+                         education +
+                         housing +
+                         loan +
+                         contact +
+                         month +
+                         day_of_week +
+                         campaign +
+                         previous +
+                         emp.var.rate +
+                         cons.price.idx +
+                         cons.conf.idx +
+                         education:housing+
+                         age:job+
+                         age:marital+
+                         age:education+
+                         month:day_of_week,data=train,mtry=4,ntree=500,importance=T)
+
+fit.pred.full.ds = predict(full.log.ds,newdata=test_ds,type="response")
+fit.pred.step.ds = predict(step.log.ds,newdata=test_ds,type="response")
+fit.pred.lasso.ds = predict(final.lasso.log.ds,newdata=test_ds,type="response",newx=model.matrix(outcome~age + 
+                                                                                                   marital +
+                                                                                                   education +
+                                                                                                   housing +
+                                                                                                   loan +
+                                                                                                   contact +
+                                                                                                   month +
+                                                                                                   day_of_week +
+                                                                                                   #pdays +
+                                                                                                   campaign +
+                                                                                                   previous +
+                                                                                                   emp.var.rate +
+                                                                                                   cons.price.idx +
+                                                                                                   cons.conf.idx +
+                                                                                                   education:housing+
+                                                                                                   age:job+
+                                                                                                   age:marital+
+                                                                                                   age:education+
+                                                                                                   month:day_of_week,test_ds))
+fit.pred.lda.ds = predict(lda.log.ds,newdata=test_ds)
+fit.pred.qda.ds = predict(qda.log.ds,newdata=test_ds)
+fit.pred.rf.ds = predict(train.rf,newdata=test_ds,type="prob")
+fit.pred.main.ds = predict(model.main,newdata=test_ds,type="response")
+
+
+
+# Classification results 
+
+cutoff = 0.4
+classifications.full.ds = factor(ifelse(fit.pred.full.ds>cutoff,"yes","no"),levels=c("no","yes"))
+classifications.step.ds = factor(ifelse(fit.pred.step.ds>cutoff,"yes","no"),levels=c("no","yes"))
+classifications.lasso.ds = factor(ifelse(fit.pred.lasso.ds>cutoff,"yes","no"),levels=c("no","yes"))
+classifications.lda.ds = factor(ifelse(fit.pred.lda.ds$posterior[,2]>cutoff,"yes","no"),levels=c("no","yes"))
+classifications.qda.ds = factor(ifelse(fit.pred.qda.ds$posterior[,2]>cutoff,"yes","no"),levels=c("no","yes"))
+classifications.rf.ds = factor(ifelse(fit.pred.rf.ds[,2]>cutoff,"yes","no"),levels=c("no","yes"))
+classifications.main.ds = factor(ifelse(fit.pred.main.ds>cutoff,"yes","no"),levels=c("no","yes"))
+
+
+results.step.ds = prediction(fit.pred.step.ds,test_ds$outcome,label.ordering=c("no","yes"))
+results.full.ds = prediction(fit.pred.full.ds,test_ds$outcome,label.ordering=c("no","yes"))
+results.main.ds = prediction(fit.pred.main.ds,test_ds$outcome,label.ordering=c("no","yes"))
+results.lasso.ds = prediction(fit.pred.lasso.ds,test_ds$outcome,label.ordering=c("no","yes"))
+results.lda.ds = prediction(fit.pred.lda.ds$posterior[,2],test_ds$outcome,label.ordering=c("no","yes"))
+results.qda.ds = prediction(fit.pred.qda.ds$posterior[,2],test_ds$outcome,label.ordering=c("no","yes"))
+results.rf.ds <- prediction(fit.pred.rf.ds[,2], test_ds$outcome)
+
+
+roc.full.ds = performance(results.full.ds, measure = "tpr", x.measure = "fpr")
+roc.main.ds = performance(results.main.ds, measure = "tpr", x.measure = "fpr")
+roc.step.ds = performance(results.step.ds, measure = "tpr", x.measure = "fpr")
+roc.lasso.ds = performance(results.lasso.ds, measure = "tpr", x.measure = "fpr")
+roc.lda.ds = performance(results.lda.ds, measure = "tpr", x.measure = "fpr")
+roc.qda.ds = performance(results.qda.ds, measure = "tpr", x.measure = "fpr")
+roc.rf.ds = performance(results.rf.ds, measure = "tpr", x.measure = "fpr")
+
+
+auc.full.ds = performance(results.full.ds, measure = "auc")
+auc.step.ds = performance(results.step.ds, measure = "auc")
+auc.lasso.ds = performance(results.lasso.ds, measure = "auc")
+auc.lda.ds = performance(results.lda.ds, measure = "auc")
+auc.qda.ds = performance(results.qda.ds, measure = "auc")
+auc.rf.ds = performance(results.rf.ds, measure = "auc")
+auc.main.ds = performance(results.main.ds,measure="auc")
+
+dev.off()
+plot(roc.full.ds,col="red", main = "ROC Curve for Interpretable Model",colorize=T)
+abline(a=0,b=1)
+text(x = .40, y = .6,paste("AUC = ", round(auc.main.ds@y.values[[1]],3), sep = ""))
+
+dev.off()
+plot(roc.full.ds,col="red", main = "ROC Curve for Base Model vs LDA/QDA")
+plot(roc.main.ds,col="green",add=T)
+abline(a=0,b=1)
+legend("bottomright",legend=c("Base Model with Interactions",
+                              "Main model without Interactions"),col=c("red","green"),lty=1,lwd=1)
+
+dev.off()
+plot(roc.full.ds,col="red", main = "ROC Curve for Base Model vs LDA/QDA")
+plot(roc.lda.ds,col="green",add=T)
+plot(roc.qda.ds,col="black",add=T)
+abline(a=0,b=1)
+legend("bottomright",legend=c("Base Model with Interactions",
+                              "LDA",
+                              "QDA"
+                              ),col=c("red","green","black"),lty=1,lwd=1)
+
+dev.off()
+plot(roc.full.ds,col="red", main = "ROC Curve for Base Model vs RandomForest")
+plot(roc.rf.ds,col="green",add=T)
+abline(a=0,b=1)
+legend("bottomright",legend=c("Base Model with Interactions",
+                              "Random Forest"
+),col=c("red","green"),lty=1,lwd=1)
+
+dev.off()
+plot(roc.full.ds,col="red", main = "ROC Curve for different classifiers")
+plot(roc.step.ds,col="green",add=T)
+plot(roc.lasso.ds,col="blue",add=T)
+plot(roc.lda.ds,col="brown",add=T)
+plot(roc.qda.ds,col="pink",add=T)
+abline(a=0,b=1)
+legend("bottomright",legend=c("Base Model with Interactions",
+                              "Stepwise Regression on Base Model",
+                              "Lasso Regression on Base Model",
+                              "LDA",
+                              "QDA"
+                              ),col=c("red","green","blue","brown","pink"),lty=1,lwd=1)
+
+
+
+# AUC Values 
+round(auc.full.ds@y.values[[1]],3)
+round(auc.step.ds@y.values[[1]],3)
+round(auc.lasso.ds@y.values[[1]],3)
+round(auc.lda.ds@y.values[[1]],3)
+round(auc.qda.ds@y.values[[1]],3)
+round(auc.rf.ds@y.values[[1]],3)
+
+```
 
 
