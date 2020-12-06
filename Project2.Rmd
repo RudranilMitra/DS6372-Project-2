@@ -539,7 +539,7 @@ bank_fwd_model <- step(intercept_only_model,
 ```
 
 
-# Function to test models against a test set
+## Function to test models against a test set
 ```{r}
 # function to test the models. Returns accuracy, sensitivity, and specificity of the test data set
 modelOptimization <- function(train_model, test_dataframe, ResponseCol, threshold){
